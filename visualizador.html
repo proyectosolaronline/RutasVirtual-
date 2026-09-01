@@ -1,0 +1,241 @@
+  // ===== GENERAR VISUALIZADOR DE TRÁNSITO =====
+  function generarVisualizador(nombreRuta) {
+    const paradasJSON = JSON.stringify(paradas);
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+<title>RUTA ${nombreRuta}</title>
+<style>
+  *{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+  }
+
+  html, body{
+    width:100%;
+    height:100%;
+    background:#000;
+    color:#fff;
+    font-family:'Segoe UI', Roboto, -apple-system, sans-serif;
+    overflow:hidden;
+  }
+
+  #visualizador{
+    width:100%;
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    overflow:hidden;
+    position:relative;
+  }
+
+  .pantalla-completa{
+    width:100%;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:20px;
+    padding:20px;
+    text-align:center;
+  }
+
+  .scroll-container{
+    width:100%;
+    overflow:hidden;
+    white-space:nowrap;
+  }
+
+  .scroll-texto{
+    display:inline-block;
+    padding-left:100%;
+    animation: scrollHorizontal 20s linear infinite;
+    font-size: clamp(24px, 8vw, 80px);
+    font-weight:700;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:#fff;
+  }
+
+  @keyframes scrollHorizontal {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+  }
+
+  .titulo-ruta{
+    font-size: clamp(32px, 10vw, 100px);
+    font-weight:800;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    color:#35c2a4;
+    text-align:center;
+  }
+
+  .parada-actual{
+    font-size: clamp(40px, 12vw, 120px);
+    font-weight:700;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:#fff;
+    text-align:center;
+  }
+
+  .distancia{
+    font-size: clamp(28px, 8vw, 80px);
+    font-weight:600;
+    color:#e0a53c;
+    text-align:center;
+  }
+
+  .mensaje{
+    font-size: clamp(20px, 6vw, 60px);
+    font-weight:400;
+    color:#8ea3b8;
+    text-align:center;
+  }
+
+  .btn-retorno{
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 9999;
+    background: #16263a;
+    color: #35c2a4;
+    border: 2px solid #35c2a4;
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    transition: 0.2s;
+    font-family: 'Segoe UI', Roboto, -apple-system, sans-serif;
+  }
+
+  .btn-retorno:hover{
+    background: #35c2a4;
+    color: #0b1420;
+  }
+
+  .btn-retorno:active{
+    transform: scale(0.95);
+  }
+
+  @media (orientation: landscape) {
+    .titulo-ruta{ font-size: clamp(24px, 5vh, 60px); }
+    .parada-actual{ font-size: clamp(28px, 7vh, 80px); }
+    .distancia{ font-size: clamp(20px, 5vh, 50px); }
+    .mensaje{ font-size: clamp(16px, 4vh, 40px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="visualizador">
+  <div class="pantalla-completa" id="pantallaScroll">
+    <div class="scroll-container">
+      <div class="scroll-texto" id="textoScroll">
+        RUTA ${nombreRuta} ✦ PRÓXIMA PARADA ✦ PIDA SU PARADA CON TIEMPO
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Botón para volver al Generador de Ruta -->
+<button class="btn-retorno" onclick="window.location.href='index.html'">
+  🏠 Generar Otra Ruta
+</button>
+
+<script>
+  const RUTA = ${paradasJSON};
+  const NOMBRE_RUTA = '${nombreRuta}';
+  let indiceParadaActual = 0;
+  let pantallaScroll = document.getElementById('pantallaScroll');
+  let textoScroll = document.getElementById('textoScroll');
+
+  function calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c * 1000;
+  }
+
+  function formatearDistancia(metros) {
+    if (metros < 100) return Math.round(metros) + ' m';
+    if (metros < 1000) return Math.round(metros) + ' m';
+    return (metros / 1000).toFixed(1) + ' km';
+  }
+
+  function actualizarPantalla() {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      const latActual = pos.coords.latitude;
+      const lngActual = pos.coords.longitude;
+      const parada = RUTA[indiceParadaActual];
+
+      if (!parada) return;
+
+      const distancia = calcularDistancia(latActual, lngActual, parada.lat, parada.lng);
+
+      if (distancia < 20) {
+        pantallaScroll.innerHTML = 
+          '<div class="titulo-ruta">RUTA ${NOMBRE_RUTA}</div>' +
+          '<div class="parada-actual">PARADA: ' + parada.nombre + '</div>' +
+          '<div class="mensaje">LLEGANDO</div>';
+
+        setTimeout(function() {
+          indiceParadaActual++;
+          if (indiceParadaActual >= RUTA.length) {
+            indiceParadaActual = 0;
+          }
+          restaurarScroll();
+        }, 3000);
+
+      } else {
+        textoScroll.textContent = 'RUTA ${NOMBRE_RUTA} ✦ PRÓXIMA PARADA: ' + parada.nombre + ' ✦ ' + formatearDistancia(distancia) + ' ✦ PIDA SU PARADA CON TIEMPO';
+        if (pantallaScroll.innerHTML.indexOf('scroll-container') === -1) {
+          restaurarScroll();
+        }
+      }
+    }, function(error) {
+      console.error('Error GPS:', error);
+    }, { enableHighAccuracy: true, timeout: 5000 });
+  }
+
+  function restaurarScroll() {
+    pantallaScroll.innerHTML = 
+      '<div class="scroll-container">' +
+        '<div class="scroll-texto" id="textoScroll">' +
+          'RUTA ${NOMBRE_RUTA} ✦ PRÓXIMA PARADA ✦ PIDA SU PARADA CON TIEMPO' +
+        '</div>' +
+      '</div>';
+    textoScroll = document.getElementById('textoScroll');
+  }
+
+  setInterval(actualizarPantalla, 3000);
+  actualizarPantalla();
+
+  document.body.addEventListener('click', function(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  });
+<\/script>
+</body>
+</html>`;
+  }
